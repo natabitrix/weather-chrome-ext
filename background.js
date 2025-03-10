@@ -45,7 +45,7 @@ function updateIcon(iconUrl, temperature, wind) {
             const canvas = new OffscreenCanvas(32, 32);
             const context = canvas.getContext('2d');
 
-            context.fillStyle = "rgb(70, 43, 119)";
+            context.fillStyle = "rgb(28, 28, 28)";
             context.fillRect(0, 0, 32, 32);
 
             // Рисуем иконку
