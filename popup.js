@@ -74,146 +74,149 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Получение прогноза на неделю
     fetch(forecastUrl)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка при загрузке данных');
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (data.list) {
-                const forecastList = document.getElementById('forecast-list');
-                if (forecastList) {
-                    forecastList.innerHTML = ''; // Очистка списка
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Ошибка при загрузке данных');
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.list) {
+            const forecastList = document.getElementById('forecast-list');
+            if (forecastList) {
+                forecastList.innerHTML = ''; // Очистка списка
 
-                    // Группируем данные по дням
-                    const groupedByDay = groupForecastByDay(data.list);
+                // Группируем данные по дням
+                const groupedByDay = groupForecastByDay(data.list);
 
-                    const curDate = new Date().toLocaleDateString('ru-RU', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
+                const curDate = new Date().toLocaleDateString('ru-RU', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                });
+
+                const curDayData = groupedByDay[curDate];
+                const nextDayData = groupedByDay[getNextDay(curDate)];
+
+                // Определяем текущее время суток
+                const currentTimeOfDay = getCurrentTimeOfDay();
+
+                // Заполняем блоки данными
+                fillForecastBlocks(curDayData, nextDayData, currentTimeOfDay);
+
+                // Переставляем блоки в нужном порядке
+                rearrangeTodayForecast(currentTimeOfDay, curDayData, nextDayData);
+
+                // Отображаем прогноз по дням
+                Object.keys(groupedByDay).forEach(date => {
+                    const dayData = groupedByDay[date];
+
+                    // Создаем элемент для дня
+                    const li = document.createElement('li');
+                    li.className = 'day-forecast';
+
+                    // Форматируем дату
+                    const formattedDate = new Date(dayData.date).toLocaleDateString('ru-RU', {
+                        day: 'numeric',
+                        month: 'long',
+                        weekday: 'short',
+                    }).replace(/\./g, '');
+
+                    // Находим минимальную и максимальную температуру
+                    let minTemp = Math.round(Math.min(...dayData.temps));
+                    let maxTemp = Math.round(Math.max(...dayData.temps));
+
+                    if (minTemp > 0) {
+                        minTemp = "+" + minTemp;
+                    }
+                    if (maxTemp > 0) {
+                        maxTemp = "+" + maxTemp;
+                    }
+                    const icon1 = `https://openweathermap.org/img/wn/${dayData.icons[0]}.png`;
+                    const icon2 = `https://openweathermap.org/img/wn/${dayData.icons[1]}.png`;
+
+                    // Находим минимальную и максимальную скорость ветра
+                    const minWind = Math.round(Math.min(...dayData.winds));
+                    const maxWind = Math.round(Math.max(...dayData.winds));
+
+                    // Отображаем данные
+                    li.innerHTML = `
+                        <div class="day-summary">
+                            <span class="date">${formattedDate}</span>
+                            <span class="icons"><img src="${icon1}"><img src="${icon2}"></span>
+                            <span class="temp">${minTemp} / ${maxTemp}°C</span>
+                            <span class="wind">${windIcon} ${minWind} - ${maxWind} м/с</span>
+                            <button class="toggle-hourly">▼</button>
+                        </div>
+                        <ul class="hourly-forecast" style="display: none;"></ul>
+                    `;
+
+                    // Добавляем обработчик для кнопки
+                    const toggleButton = li.querySelector('.toggle-hourly');
+                    const hourlyForecast = li.querySelector('.hourly-forecast');
+
+                    toggleButton.addEventListener('click', () => {
+                        if (hourlyForecast.style.display === 'none') {
+                            // Загружаем почасовой прогноз
+                            let hourlyForecastHtml = '';
+                            dayData.hourly.forEach(hour => {
+                                let temp = Math.round(hour.main.temp);
+                                if (temp > 0) {
+                                    temp = "+" + temp;
+                                }
+                                
+                                const iconCode = hour.weather[0].icon;
+                                const iconUrl = `https://openweathermap.org/img/wn/${iconCode}.png`;
+
+                                const description = hour.weather[0].description;
+
+                                hourlyForecastHtml += `
+                                    <li>
+                                        <div class="time" style="width: 40px;">${new Date(hour.dt * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
+
+                                        <div class="temp" style="width: 40px;">${temp}°C</div>
+
+                                        <div class="d-flex align-items-center" style="width: 130px;">
+                                            <img src="${iconUrl}">
+
+                                            <div class="description font10">${description}</div>
+                                        </div>
+
+                                        <div class="wind" style="width: 50px;">${windIcon} ${Math.round(hour.wind.speed)} м/с</div>
+                                    </li>
+                                `;
+                            });
+                            hourlyForecast.innerHTML = hourlyForecastHtml;
+
+                            hourlyForecast.style.display = 'block';
+                            toggleButton.textContent = '▲';
+                            li.querySelector('.day-summary').style = 'background-color:#48484a';
+                        } else {
+                            hourlyForecast.style.display = 'none';
+                            toggleButton.textContent = '▼';
+                            li.querySelector('.day-summary').style = 'background-color:none';
+                        }
                     });
 
-                    const curDayData = groupedByDay[curDate];
-                    const nextDayData = groupedByDay[getNextDay(curDate)];
-    
-                    // Определяем текущее время суток
-                    const currentTimeOfDay = getCurrentTimeOfDay();
-    
-                    // Заполняем блоки данными
-                    fillForecastBlocks(curDayData, nextDayData, currentTimeOfDay);
-    
-                    // Переставляем блоки в нужном порядке
-                    rearrangeTodayForecast(currentTimeOfDay);
-
-                    // Отображаем прогноз по дням
-                    Object.keys(groupedByDay).forEach(date => {
-                        const dayData = groupedByDay[date];
-
-                        // console.log(date);
-
-                        // Создаем элемент для дня
-                        const li = document.createElement('li');
-                        li.className = 'day-forecast';
-
-                        // Форматируем дату
-                        const formattedDate = new Date(dayData.date).toLocaleDateString('ru-RU', {
-                            day: 'numeric',
-                            month: 'long',
-                            weekday: 'short',
-                        }).replace(/\./g, '');
-
-                        // Находим минимальную и максимальную температуру
-                        let minTemp = Math.round(Math.min(...dayData.temps));
-                        let maxTemp = Math.round(Math.max(...dayData.temps));
-
-                        if (minTemp > 0) {
-                            minTemp = "+" + minTemp;
-                        }
-                        if (maxTemp > 0) {
-                            maxTemp = "+" + maxTemp;
-                        }
-                        const icon1 = `https://openweathermap.org/img/wn/${dayData.icons[0]}.png`;;
-                        const icon2 = `https://openweathermap.org/img/wn/${dayData.icons[1]}.png`;;
-
-                        // Находим минимальную и максимальную скорость ветра
-                        const minWind = Math.round(Math.min(...dayData.winds));
-                        const maxWind = Math.round(Math.max(...dayData.winds));
-
-
-                        // Отображаем данные
-                        li.innerHTML = `
-                            <div class="day-summary">
-                                <span class="date">${formattedDate}</span>
-                                <span class="icons"><img src="${icon1}"><img src="${icon2}"></span>
-                                <span class="temp">${minTemp} / ${maxTemp}°C</span>
-                                <span class="wind">${windIcon} ${minWind} - ${maxWind} м/с</span>
-                                <button class="toggle-hourly">▼</button>
-                            </div>
-                            <ul class="hourly-forecast" style="display: none;"></ul>
-                        `;
-
-                        // Добавляем обработчик для кнопки
-                        const toggleButton = li.querySelector('.toggle-hourly');
-                        const hourlyForecast = li.querySelector('.hourly-forecast');
-
-                        toggleButton.addEventListener('click', () => {
-                            if (hourlyForecast.style.display === 'none') {
-                                // Загружаем почасовой прогноз
-
-                                let hourlyForecastHtml = '';
-                                dayData.hourly.forEach(hour => {
-                                    let temp = Math.round(hour.main.temp);
-                                    if (temp > 0) {
-                                        temp = "+" + temp;
-                                    }
-                                    
-                                    const iconCode = hour.weather[0].icon;
-                                    const iconUrl = `https://openweathermap.org/img/wn/${iconCode}.png`;
-
-                                    const description = hour.weather[0].description;
-
-                                    hourlyForecastHtml += `
-                                        <li>
-                                            <div class="time" style="width: 40px;">${new Date(hour.dt * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</div>
-
-                                            <div class="temp" style="width: 40px;">${temp}°C</div>
-
-                                            <div class="d-flex align-items-center" style="width: 130px;">
-                                                <img src="${iconUrl}">
-
-                                                <div class="description font10">${description}</div>
-                                            </div>
-
-                                            <div class="wind" style="width: 50px;">${windIcon} ${Math.round(hour.wind.speed)} м/с</div>
-                                        </li>
-                                    `;
-                                });
-                                hourlyForecast.innerHTML = hourlyForecastHtml;
-
-                                hourlyForecast.style.display = 'block';
-                                toggleButton.textContent = '▲';
-                                li.querySelector('.day-summary').style = 'background-color:#48484a';
-                            } else {
-                                hourlyForecast.style.display = 'none';
-                                toggleButton.textContent = '▼';
-                                li.querySelector('.day-summary').style = 'background-color:none';
-                            }
-                        });
-
-                        forecastList.appendChild(li);
-                    });
-                } else {
-                    showError('Элемент #forecast-list не найден');
-                }
+                    forecastList.appendChild(li);
+                });
             } else {
-                showError('Данные о прогнозе недоступны');
+                showError('Элемент #forecast-list не найден');
             }
-        })
-        .catch(error => {
-            showError(error.message);
-        });
+        } else {
+            showError('Данные о прогнозе недоступны');
+        }
+    })
+    .catch(error => {
+        showError(error.message);
+    });
+
+
+
+
+
+
+
 
     // Группировка прогноза по дням
     function groupForecastByDay(forecastList) {
@@ -386,23 +389,53 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function rearrangeTodayForecast(currentTimeOfDay) {
+    function rearrangeTodayForecast(currentTimeOfDay, curDayData, nextDayData) {
         const todayForecast = document.getElementById('today-forecast');
         const forecastItems = Array.from(todayForecast.children);
     
+        // Получаем правильный порядок блоков
+        const newOrder = getBlockOrder(currentTimeOfDay);
+    
+        // Удаляем все блоки
+        todayForecast.innerHTML = '';
+    
+        // Добавляем блоки в нужном порядке
+        newOrder.forEach(timeOfDay => {
+            const item = forecastItems.find(el => el.classList.contains(`${timeOfDay}-forecast`));
+            if (item) {
+                todayForecast.appendChild(item);
+            }
+        });
+    
+        // Если данных для текущего времени суток нет, добавляем блоки из следующего дня
+        if (!curDayData.hourly.some(item => {
+            const hour = new Date(item.dt * 1000).getHours();
+            if (currentTimeOfDay === 'night') return hour >= 0 && hour < 6;
+            if (currentTimeOfDay === 'morning') return hour >= 6 && hour < 12;
+            if (currentTimeOfDay === 'midday') return hour >= 12 && hour < 18;
+            if (currentTimeOfDay === 'evening') return hour >= 18 && hour < 24;
+        })) {
+            // Добавляем блоки из следующего дня
+            const nextDayOrder = getBlockOrder(newOrder[newOrder.length - 1]);
+            nextDayOrder.forEach(timeOfDay => {
+                const item = forecastItems.find(el => el.classList.contains(`${timeOfDay}-forecast`));
+                if (item) {
+                    todayForecast.appendChild(item);
+                }
+            });
+        }
+    }
+    
+    function getBlockOrder(currentTimeOfDay) {
         // Порядок блоков в зависимости от времени суток
         const order = {
-            night: ['night', 'morning', 'midday', 'evening'],
-            morning: ['morning', 'midday', 'evening', 'night'],
-            midday: ['midday', 'evening', 'night', 'morning'],
-            evening: ['evening', 'night', 'morning', 'midday'],
+            night: ['night', 'morning', 'midday', 'evening'], // Ночь → Утро → День → Вечер
+            morning: ['midday', 'evening', 'night', 'morning'], // Утро → День → Вечер → Следующая ночь
+            midday: ['midday', 'evening', 'night', 'morning'], // День → Вечер → Следующая ночь → Следующее утро
+            evening: ['evening', 'night', 'morning', 'midday'], // Вечер → Следующая ночь → Следующее утро → Следующий день
         };
     
-        // Переставляем блоки
-        const newOrder = order[currentTimeOfDay];
-        newOrder.forEach((timeOfDay, index) => {
-            const item = forecastItems.find(el => el.classList.contains(`${timeOfDay}-forecast`));
-            todayForecast.appendChild(item);
-        });
+        return order[currentTimeOfDay];
     }
+
 });
